@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, ContextTypes
 import requests
 import json
 import time
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = os.getenv("ADMIN_ID")
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
+RENDER_EXTERNAL_HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME", "temp-mail-bot.onrender.com")  # Default fallback
 
 # Check if environment variables are set
 if not all([BOT_TOKEN, ADMIN_ID, CHANNEL_USERNAME]):
@@ -34,8 +35,8 @@ ACCOUNTS_ENDPOINT = f"{MAIL_TM_BASE_URL}/accounts"
 MESSAGES_ENDPOINT = f"{MAIL_TM_BASE_URL}/messages"
 TOKEN_ENDPOINT = f"{MAIL_TM_BASE_URL}/token"
 
-# Telegram application
-application = ApplicationBuilder().token(BOT_TOKEN).build()
+# Telegram application (webhook mode only)
+application = Application.builder().token(BOT_TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /start command"""
@@ -203,16 +204,15 @@ async def webhook():
 
 async def set_webhook():
     """Set Telegram webhook"""
-    webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/webhook"
+    webhook_url = f"https://{RENDER_EXTERNAL_HOSTNAME}/webhook"
     try:
-        async with application:
-            await application.bot.set_webhook(url=webhook_url)
-            logger.info(f"Webhook set to {webhook_url}")
+        await application.bot.set_webhook(url=webhook_url)
+        logger.info(f"Webhook set to {webhook_url}")
     except Exception as e:
         logger.error(f"Error setting webhook: {e}")
 
 if __name__ == "__main__":
-    # Initialize application and set webhook
+    # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("verify", verify))
     application.add_handler(CommandHandler("new", new_email))
@@ -220,6 +220,6 @@ if __name__ == "__main__":
     application.add_handler(CommandHandler("delete", delete_email))
     application.add_handler(CommandHandler("broadcast", broadcast))
 
-    # Run Flask app and set webhook
+    # Set webhook and run Flask app
     asyncio.run(set_webhook())
     app.run(host='0.0.0.0', port=int(os.getenv("PORT", 8443)))
